@@ -413,3 +413,65 @@ class FileSystemStoreBackend(StoreBackendBase, StoreBackendMixin):
 
         self.mmap_mode = mmap_mode
         self.verbose = verbose
+
+def write_parquet(df, filename):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    print('writing {}'.format(filename))
+    table = pa.Table.from_pandas(df, preserve_index=False)
+
+    # TODO consider swap to use dataset but then need the threadsafe to handle directories
+    # pq.write_to_dataset(table, root_path=filename, partition_cols=partition_cols, preserve_index=preserve_index)
+    pq.write_table(table, filename)
+
+
+class FileSystemStoreBackend2(FileSystemStoreBackend):
+    def dump_item(self, path, item, verbose=1):
+        """Dump an item in the store at the path given as a list of
+           strings."""
+        try:
+            item_path = os.path.join(self.location, *path)
+            if not self._item_exists(item_path):
+                self.create_location(item_path)
+            filename = os.path.join(item_path, 'output.pkl')
+            if verbose > 10:
+                print('Persisting in %s' % item_path)
+
+            def write_func(to_write, dest_filename):
+                with self._open_item(dest_filename, "wb") as f:
+                    # numpy_pickle.dump(to_write, f, compress=self.compress)
+                    write_parquet(to_write, f)
+
+            self._concurrency_safe_write(item, filename, write_func)
+        except Exception as e:  # noqa: E722
+            " Race condition in the creation of the directory "
+            raise e
+    def load_item(self, path, verbose=1, msg=None):
+        """Load an item from the store given its path as a list of
+           strings."""
+        full_path = os.path.join(self.location, *path)
+
+        if verbose > 1:
+            if verbose < 10:
+                print('{0}...'.format(msg))
+            else:
+                print('{0} from {1}'.format(msg, full_path))
+
+        mmap_mode = (None if not hasattr(self, 'mmap_mode')
+                     else self.mmap_mode)
+
+        filename = os.path.join(full_path, 'output.pkl')
+        print(filename)
+        if not self._item_exists(filename):
+            raise KeyError("Non-existing item (may have been "
+                           "cleared).\nFile %s does not exist" % filename)
+
+        # # file-like object cannot be used when mmap_mode is set
+        # if mmap_mode is None:
+        #     with self._open_item(filename, "rb") as f:
+        #         item = numpy_pickle.load(f)
+        # else:
+        # item = numpy_pickle.load(filename, mmap_mode=mmap_mode)
+        import pandas as pd
+        item = pd.read_parquet(filename)
+        return item

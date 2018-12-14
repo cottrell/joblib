@@ -28,7 +28,7 @@ from .func_inspect import format_signature
 from ._memory_helpers import open_py_source
 from .logger import Logger, format_time, pformat
 from ._compat import _basestring, PY3_OR_LATER
-from ._store_backends import StoreBackendBase, FileSystemStoreBackend
+from ._store_backends import StoreBackendBase, FileSystemStoreBackend, FileSystemStoreBackend2 
 
 
 FIRST_LINE_TEXT = "# first line:"
@@ -64,7 +64,7 @@ class JobLibCollisionWarning(UserWarning):
     """
 
 
-_STORE_BACKENDS = {'local': FileSystemStoreBackend}
+_STORE_BACKENDS = {'local': FileSystemStoreBackend, 'local2': FileSystemStoreBackend2}
 
 
 def register_store_backend(backend_name, backend):
